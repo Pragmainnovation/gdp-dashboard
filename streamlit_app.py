@@ -131,18 +131,18 @@ def create_pdf(purchase_price, rent_pct, annual_rent, annual_roi_pct,
     # Input parameters section
     pdf.cell(0, 16, "1. Input Parameters:", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 14, f"   • Purchase Price:   ${purchase_price:,.0f}", ln=True)
-    pdf.cell(0, 14, f"   • Annual Rent Yield (%):   {rent_pct:.2f}%", ln=True)
+    pdf.cell(0, 14, f"   - Purchase Price:   ${purchase_price:,.0f}", ln=True)
+    pdf.cell(0, 14, f"   - Annual Rent Yield (%):   {rent_pct:.2f}%", ln=True)
     pdf.ln(6)
 
     # Computed outputs section
     pdf.set_font("Helvetica", "", 12)
     pdf.cell(0, 16, "2. Computed Outputs:", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 14, f"   • Annual Rent (USD):   ${annual_rent:,.0f}", ln=True)
-    pdf.cell(0, 14, f"   • Annual ROI (%):   {annual_roi_pct:.2f}%", ln=True)
-    pdf.cell(0, 14, f"   • Quarterly Rent (USD):   ${quarterly_rent:,.0f}", ln=True)
-    pdf.cell(0, 14, f"   • Quarterly ROI (%):   {quarterly_roi_pct:.2f}%", ln=True)
+    pdf.cell(0, 14, f"   - Annual Rent (USD):   ${annual_rent:,.0f}", ln=True)
+    pdf.cell(0, 14, f"   - Annual ROI (%):   {annual_roi_pct:.2f}%", ln=True)
+    pdf.cell(0, 14, f"   - Quarterly Rent (USD):   ${quarterly_rent:,.0f}", ln=True)
+    pdf.cell(0, 14, f"   - Quarterly ROI (%):   {quarterly_roi_pct:.2f}%", ln=True)
     pdf.ln(10)
 
     # Quarterly table
@@ -170,12 +170,11 @@ def create_pdf(purchase_price, rent_pct, annual_rent, annual_roi_pct,
     pdf.ln(10)
     pdf.set_font("Helvetica", "I", 10)
     pdf.set_text_color(100, 100, 100)
-    pdf.multi_cell(
-        0,
-        12,
-        "Note: All calculations assume no financing (cash purchase) and no taxes or additional operating expenses.",
-        align="L"
+    footer = (
+        "Note: All calculations assume no financing (cash purchase) "
+        "and no taxes or additional operating expenses."
     )
+    pdf.multi_cell(0, 12, footer, align="L")
 
     # Return PDF as bytes
     return pdf.output(dest="S").encode("latin1")
