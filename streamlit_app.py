@@ -20,7 +20,7 @@ purchase_price = st.sidebar.slider(
     max_value=1_000_000,
     value=200_000,
     step=1_000,
-    help="Select the full amount you paid for the property (including any one‐time acquisition costs)."
+    help="Select the full amount you paid for the property (including any one-time acquisition costs)."
 )
 
 rent_pct = st.sidebar.slider(
@@ -80,7 +80,7 @@ st.subheader("Quarterly Rent Breakdown")
 st.table(df_quarters.style.format({"Rent (USD)": "${:,.0f}"}))
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5) CHARTS (on‐screen with Altair)
+# 5) CHARTS (on-screen with Altair)
 # ──────────────────────────────────────────────────────────────────────────────
 st.subheader("Charts")
 
@@ -118,16 +118,10 @@ pie_chart = (
 )
 st.altair_chart(pie_chart, use_container_width=False)
 
-st.markdown(
-    """
-    *All calculations assume no financing (cash purchase) and no taxes or additional operating expenses.*
-    """
-)
-
 st.markdown("---")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6) PDF REPORT GENERATION (with black background, border, logo, contact)
+# 6) PDF REPORT GENERATION (with full styling)
 # ──────────────────────────────────────────────────────────────────────────────
 st.subheader("📄 Generate PDF Report")
 
@@ -137,11 +131,12 @@ def create_pdf_with_charts(
 ):
     """
     Build a PDF in memory containing:
-      1. Black background + white border on each page
+      1. Black background + white 2-pt border on each page
       2. Dummy logo + contact info at top of Page 1
-      3. Inputs & computed outputs (all white text)
-      4. Quarterly‐rent table
-      5. Bar‐chart PNG + Pie‐chart PNG, embedded
+      3. Inputs & computed outputs (white text)
+      4. Quarterly-rent table (white text on black)
+      5. Bar-chart PNG + Pie-chart PNG (white-on-black Matplotlib) embedded
+      6. No footer line
     Returns: PDF data as bytes.
     """
 
@@ -150,16 +145,16 @@ def create_pdf_with_charts(
         # Fill entire page black
         pdf.set_fill_color(0, 0, 0)
         pdf.rect(0, 0, pdf.w, pdf.h, style="F")
-        # Draw white border (2pt thick) with a small margin
-        margin = 10  # points
+        # Draw white border (2 pt thick) with margin=10
+        margin = 10
         pdf.set_line_width(2)
         pdf.set_draw_color(255, 255, 255)
-        pdf.rect(margin, margin, pdf.w - 2 * margin, pdf.h - 2 * margin)
+        pdf.rect(margin, margin, pdf.w - 2*margin, pdf.h - 2*margin)
 
-    # --- STEP A: Generate the Matplotlib figures and save as temporary PNGs ---
-    # A.1) Bar chart (matching the Altair on‐screen version)
-    fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-    ax_bar.bar(df_quarters["Quarter"], df_quarters["Rent (USD)"], color="#1f77b4")
+    # --- STEP A: Generate Matplotlib figures as PNGs ---
+    # A.1) Bar chart (white-on-black)
+    fig_bar, ax_bar = plt.subplots(figsize=(6, 4), facecolor="black")
+    ax_bar.bar(df_quarters["Quarter"], df_quarters["Rent (USD)"], color="white")
     ax_bar.set_facecolor("black")
     ax_bar.tick_params(colors="white", which="both")
     ax_bar.set_xlabel("Quarter", color="white")
@@ -173,7 +168,7 @@ def create_pdf_with_charts(
     fig_bar.savefig(tmp_bar.name, dpi=150, facecolor="black")
     plt.close(fig_bar)
 
-    # A.2) Pie chart (matching the Altair on‐screen version)
+    # A.2) Pie chart (white-on-black)
     fig_pie, ax_pie = plt.subplots(figsize=(5, 5), facecolor="black")
     categories = ["Capital (Purchase Price)", "Annual Rent (Return)"]
     values = [purchase_price, annual_rent]
@@ -194,38 +189,37 @@ def create_pdf_with_charts(
     fig_pie.savefig(tmp_pie.name, dpi=150, facecolor="black")
     plt.close(fig_pie)
 
-    # --- STEP B: Build the PDF (FPDF) ---
+    # --- STEP B: Build the PDF with FPDF ---
     pdf = FPDF(format="letter", unit="pt")
+
+    # === PAGE 1 ===
     pdf.add_page()
-    # Page 1 setup
     page_setup(pdf)
 
-    # Logo placeholder (white rectangle + “LOGO” in white)
-    logo_w = 100
-    logo_h = 50
-    logo_x = 20
-    logo_y = 20
+    # Logo placeholder: white box with "LOGO" in black
+    logo_w, logo_h = 100, 50
+    logo_x, logo_y = 20, 20
     pdf.set_fill_color(255, 255, 255)
     pdf.rect(logo_x, logo_y, logo_w, logo_h, style="F")
     pdf.set_font("Helvetica", "B", 16)
-    pdf.set_text_color(0, 0, 0)  # black text inside the white box
-    pdf.text(logo_x + (logo_w / 2) - 15, logo_y + (logo_h / 2) + 5, "LOGO")
+    pdf.set_text_color(0, 0, 0)
+    pdf.text(logo_x + (logo_w/2) - 15, logo_y + (logo_h/2) + 5, "LOGO")
 
     # Contact info (white text)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(255, 255, 255)
     contact_x = logo_x + logo_w + 20
     contact_y = logo_y + 15
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(255, 255, 255)
     pdf.text(contact_x, contact_y, "Contact: 123-456-7890")
     pdf.text(contact_x, contact_y + 15, "Email: dummy@example.com")
 
-    # Title of the report (white)
+    # Report title (white)
     pdf.set_font("Helvetica", "B", 18)
     pdf.set_text_color(255, 255, 255)
-    pdf.text(logo_x, logo_y + logo_h + 30, "Real Estate ROI Report")
+    pdf.text(logo_x, logo_y + logo_h + 40, "Real Estate ROI Report")
 
-    # Move down before writing the rest
-    pdf.ln(logo_h + 50)
+    # Move down before writing inputs/outputs
+    pdf.ln(logo_h + 60)
 
     # 1) Input parameters (white text)
     pdf.set_font("Helvetica", "", 12)
@@ -234,7 +228,7 @@ def create_pdf_with_charts(
     pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 14, f"   - Purchase Price:        ${purchase_price:,.0f}", ln=True)
     pdf.cell(0, 14, f"   - Annual Rent Yield (%):  {rent_pct:.2f}%", ln=True)
-    pdf.ln(6)
+    pdf.ln(8)
 
     # 2) Computed outputs (white text)
     pdf.set_font("Helvetica", "", 12)
@@ -246,30 +240,31 @@ def create_pdf_with_charts(
     pdf.cell(0, 14, f"   - Quarterly ROI (%):      {quarterly_roi_pct:.2f}%", ln=True)
     pdf.ln(10)
 
-    # 3) Quarterly table (white text on black background)
+    # 3) Quarterly table (white text on black rows)
     pdf.set_font("Helvetica", "", 12)
     pdf.cell(0, 16, "3. Quarterly Rent Breakdown:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     col_width = 150
     row_height = 18
-    # Table header (light gray fill)
+
+    # Table header: light gray fill, black text
     pdf.set_fill_color(200, 200, 200)
-    pdf.set_text_color(0, 0, 0)  # black text in header cells
+    pdf.set_text_color(0, 0, 0)
     pdf.cell(col_width, row_height, "Quarter", border=1, fill=True, align="C")
     pdf.cell(col_width, row_height, "Rent (USD)", border=1, fill=True, align="C")
     pdf.ln(row_height)
 
-    # Table rows
+    # Table rows: black fill, white text
     pdf.set_fill_color(0, 0, 0)
     pdf.set_text_color(255, 255, 255)
-    for idx, row in df_quarters.iterrows():
+    for _, row in df_quarters.iterrows():
         q = row["Quarter"]
         r = f"${row['Rent (USD)']:,.0f}"
         pdf.cell(col_width, row_height, q, border=1, fill=True, align="C")
         pdf.cell(col_width, row_height, r, border=1, fill=True, align="C")
         pdf.ln(row_height)
 
-    # Start page 2
+    # === PAGE 2 ===
     pdf.add_page()
     page_setup(pdf)
 
@@ -278,26 +273,16 @@ def create_pdf_with_charts(
     pdf.set_text_color(255, 255, 255)
     pdf.text(20, 40, "4. Charts:")
 
-    # 4.a) Bar chart image
+    # 4.a) Bar chart image (placed at x=20, y=60, width=500)
     pdf.image(tmp_bar.name, x=20, y=60, w=500)
 
-    # 4.b) Pie chart image (below the bar chart)
+    # 4.b) Pie chart image (placed at x=150, y=380, width=300)
     pdf.image(tmp_pie.name, x=150, y=380, w=300)
-
-    # 5) Footer note (white text)
-    pdf.ln(20)
-    pdf.set_font("Helvetica", "I", 10)
-    pdf.set_text_color(255, 255, 255)
-    footer = (
-        "Note: All calculations assume no financing (cash purchase) "
-        "and no taxes or additional operating expenses."
-    )
-    pdf.multi_cell(0, 12, footer, align="L")
 
     # Convert PDF to bytes
     pdf_bytes = pdf.output(dest="S").encode("latin1")
 
-    # Clean up temporary files
+    # Clean up temporary PNGs
     tmp_bar.close()
     tmp_pie.close()
     try:
@@ -309,7 +294,7 @@ def create_pdf_with_charts(
     return pdf_bytes
 
 
-# When the user clicks “Download PDF Report,” build PDF (with charts) and offer it
+# When the user clicks “Download PDF Report,” build PDF (with full styling) and offer it
 if st.button("📥 Download PDF Report"):
     pdf_bytes = create_pdf_with_charts(
         purchase_price=purchase_price,
