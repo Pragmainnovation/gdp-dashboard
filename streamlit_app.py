@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+import altair as alt
 
 st.set_page_config(page_title="Real Estate ROI Calculator", layout="wide")
 
@@ -50,6 +49,12 @@ df_quarters = pd.DataFrame({
     "Rent (USD)": quarterly_values
 })
 
+# Build a DataFrame for the pie chart (Capital vs Annual Rent)
+pie_df = pd.DataFrame({
+    "Category": ["Capital (Purchase Price)", "Annual Rent (Return)"],
+    "Value": [purchase_price, annual_rent]
+})
+
 # 3) DISPLAY SUMMARY METRICS
 st.subheader("Summary Metrics")
 col1, col2, col3 = st.columns(3)
@@ -71,31 +76,39 @@ st.table(df_quarters.style.format({"Rent (USD)": "${:,.0f}"}))
 # 5) CHARTS
 st.subheader("Charts")
 
-# 5.a) Bar chart of quarterly rent
-fig_bar, ax_bar = plt.subplots()
-ax_bar.bar(df_quarters["Quarter"], df_quarters["Rent (USD)"])
-ax_bar.set_xlabel("Quarter")
-ax_bar.set_ylabel("Rent (USD)")
-ax_bar.set_title("Quarterly Rent Distribution")
-ax_bar.ticklabel_format(axis="y", style="plain")
-plt.tight_layout()
-st.pyplot(fig_bar)
-
-# 5.b) Pie chart: Purchase Price vs Annual Rent
-fig_pie, ax_pie = plt.subplots()
-labels = ["Capital (Purchase Price)", "Annual Rent (Return)"]
-sizes = [purchase_price, annual_rent]
-# Show percentages for the pie
-ax_pie.pie(
-    sizes,
-    labels=labels,
-    autopct=lambda pct: f"{pct:.1f}%" if pct > 0 else "",
-    startangle=90,
-    counterclock=False
+# 5.a) Bar chart of quarterly rent (using Altair)
+bar_chart = (
+    alt.Chart(df_quarters)
+    .mark_bar()
+    .encode(
+        x=alt.X("Quarter:N", title="Quarter"),
+        y=alt.Y("Rent (USD):Q", title="Rent (USD)"),
+        tooltip=[alt.Tooltip("Rent (USD):Q", format="$,.0f")]
+    )
+    .properties(
+        width=500,
+        height=300,
+        title="Quarterly Rent Distribution"
+    )
 )
-ax_pie.set_title("Capital vs Annual Rent (Return)")
-ax_pie.axis("equal")  # Equal aspect ratio ensures pie is drawn as a circle.
-st.pyplot(fig_pie)
+st.altair_chart(bar_chart, use_container_width=True)
+
+# 5.b) Pie chart: Purchase Price vs Annual Rent (using Altair)
+pie_chart = (
+    alt.Chart(pie_df)
+    .mark_arc(innerRadius=50)
+    .encode(
+        theta=alt.Theta("Value:Q", title=""),
+        color=alt.Color("Category:N", title=""),
+        tooltip=[alt.Tooltip("Category:N"), alt.Tooltip("Value:Q", format="$,.0f")]
+    )
+    .properties(
+        width=400,
+        height=400,
+        title="Capital vs Annual Rent (Return)"
+    )
+)
+st.altair_chart(pie_chart, use_container_width=False)
 
 # 6) FOOTER NOTE
 st.markdown(
