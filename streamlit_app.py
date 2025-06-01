@@ -1,15 +1,15 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+from fpdf import FPDF
+import io
 
 st.set_page_config(page_title="Real Estate ROI Calculator", layout="wide")
-
 st.title("🏠 Real Estate ROI Calculator")
 
 # 1) INPUTS
 st.sidebar.header("Input Parameters")
 
-# 1.a) Full purchase price
 purchase_price = st.sidebar.slider(
     label="Purchase Price (USD)",
     min_value=0,
@@ -19,7 +19,6 @@ purchase_price = st.sidebar.slider(
     help="Select the full amount you paid for the property (including any one-time acquisition costs)."
 )
 
-# 1.b) Annual rent as a percentage of purchase price
 rent_pct = st.sidebar.slider(
     label="Annual Rent Yield (%)",
     min_value=0.0,
@@ -37,11 +36,9 @@ rent_decimal = rent_pct / 100.0
 annual_rent = purchase_price * rent_decimal
 quarterly_rent = annual_rent / 4.0
 
-# ROI metrics
-annual_roi_pct = rent_pct  # since annual_rent / purchase_price × 100 = rent_pct
+annual_roi_pct = rent_pct
 quarterly_roi_pct = annual_roi_pct / 4.0
 
-# Build a DataFrame for quarterly rents
 quarters = ["Q1", "Q2", "Q3", "Q4"]
 quarterly_values = [quarterly_rent] * 4
 df_quarters = pd.DataFrame({
@@ -49,7 +46,6 @@ df_quarters = pd.DataFrame({
     "Rent (USD)": quarterly_values
 })
 
-# Build a DataFrame for the pie chart (Capital vs Annual Rent)
 pie_df = pd.DataFrame({
     "Category": ["Capital (Purchase Price)", "Annual Rent (Return)"],
     "Value": [purchase_price, annual_rent]
@@ -76,7 +72,6 @@ st.table(df_quarters.style.format({"Rent (USD)": "${:,.0f}"}))
 # 5) CHARTS
 st.subheader("Charts")
 
-# 5.a) Bar chart of quarterly rent (using Altair)
 bar_chart = (
     alt.Chart(df_quarters)
     .mark_bar()
@@ -93,7 +88,6 @@ bar_chart = (
 )
 st.altair_chart(bar_chart, use_container_width=True)
 
-# 5.b) Pie chart: Purchase Price vs Annual Rent (using Altair)
 pie_chart = (
     alt.Chart(pie_df)
     .mark_arc(innerRadius=50)
@@ -110,9 +104,98 @@ pie_chart = (
 )
 st.altair_chart(pie_chart, use_container_width=False)
 
-# 6) FOOTER NOTE
 st.markdown(
     """
     *All calculations assume no financing (cash purchase) and no taxes or additional operating expenses.*
     """
 )
+
+st.markdown("---")
+
+# 6) PDF REPORT GENERATION
+st.subheader("📄 Generate PDF Report")
+
+def create_pdf(purchase_price, rent_pct, annual_rent, annual_roi_pct,
+               quarterly_rent, quarterly_roi_pct, df_quarters):
+    """
+    Build a PDF in memory containing all inputs and computed outputs.
+    Returns: PDF data as bytes.
+    """
+    pdf = FPDF(format="letter", unit="pt")
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 20, "Real Estate ROI Report", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("Helvetica", "", 12)
+    # Input parameters section
+    pdf.cell(0, 16, "1. Input Parameters:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 14, f"   • Purchase Price:   ${purchase_price:,.0f}", ln=True)
+    pdf.cell(0, 14, f"   • Annual Rent Yield (%):   {rent_pct:.2f}%", ln=True)
+    pdf.ln(6)
+
+    # Computed outputs section
+    pdf.set_font("Helvetica", "", 12)
+    pdf.cell(0, 16, "2. Computed Outputs:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 14, f"   • Annual Rent (USD):   ${annual_rent:,.0f}", ln=True)
+    pdf.cell(0, 14, f"   • Annual ROI (%):   {annual_roi_pct:.2f}%", ln=True)
+    pdf.cell(0, 14, f"   • Quarterly Rent (USD):   ${quarterly_rent:,.0f}", ln=True)
+    pdf.cell(0, 14, f"   • Quarterly ROI (%):   {quarterly_roi_pct:.2f}%", ln=True)
+    pdf.ln(10)
+
+    # Quarterly table
+    pdf.set_font("Helvetica", "", 12)
+    pdf.cell(0, 16, "3. Quarterly Rent Breakdown:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    # Table header
+    col_width = 150
+    row_height = 18
+    pdf.set_fill_color(200, 200, 200)
+    pdf.cell(col_width, row_height, "Quarter", border=1, fill=True, align="C")
+    pdf.cell(col_width, row_height, "Rent (USD)", border=1, fill=True, align="C")
+    pdf.ln(row_height)
+
+    # Table rows
+    for idx, row in df_quarters.iterrows():
+        q = row["Quarter"]
+        r = f"${row['Rent (USD)']:,.0f}"
+        pdf.set_fill_color(255, 255, 255)
+        pdf.cell(col_width, row_height, q, border=1, fill=True, align="C")
+        pdf.cell(col_width, row_height, r, border=1, fill=True, align="C")
+        pdf.ln(row_height)
+
+    # Footer note
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(
+        0,
+        12,
+        "Note: All calculations assume no financing (cash purchase) and no taxes or additional operating expenses.",
+        align="L"
+    )
+
+    # Return PDF as bytes
+    return pdf.output(dest="S").encode("latin1")
+
+
+# When user clicks the button, build PDF in memory and make it downloadable
+if st.button("📥 Download PDF Report"):
+    pdf_bytes = create_pdf(
+        purchase_price=purchase_price,
+        rent_pct=rent_pct,
+        annual_rent=annual_rent,
+        annual_roi_pct=annual_roi_pct,
+        quarterly_rent=quarterly_rent,
+        quarterly_roi_pct=quarterly_roi_pct,
+        df_quarters=df_quarters
+    )
+
+    st.download_button(
+        label="Click here to save your ROI_Report.pdf",
+        data=pdf_bytes,
+        file_name="ROI_Report.pdf",
+        mime="application/pdf"
+    )
