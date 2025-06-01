@@ -32,8 +32,7 @@ rent_pct = st.sidebar.slider(
     help="Enter the annual rent as a percentage of the purchase price. E.g. 6% means Annual Rent = 0.06 × Purchase Price."
 )
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("No taxes or financing assumed.\nROI is shown on a quarterly basis.")
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 2) CALCULATIONS
@@ -146,7 +145,7 @@ def create_pdf_with_charts(
         pdf.set_fill_color(0, 0, 0)
         pdf.rect(0, 0, pdf.w, pdf.h, style="F")
         # Draw white border (2 pt thick) with margin=10
-        margin = 10
+        margin = 30
         pdf.set_line_width(2)
         pdf.set_draw_color(255, 255, 255)
         pdf.rect(margin, margin, pdf.w - 2*margin, pdf.h - 2*margin)
