@@ -1,151 +1,105 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+st.set_page_config(page_title="Real Estate ROI Calculator", layout="wide")
+
+st.title("🏠 Real Estate ROI Calculator")
+
+# 1) INPUTS
+st.sidebar.header("Input Parameters")
+
+# 1.a) Full purchase price
+purchase_price = st.sidebar.slider(
+    label="Purchase Price (USD)",
+    min_value=0,
+    max_value=1_000_000,
+    value=200_000,
+    step=1_000,
+    help="Select the full amount you paid for the property (including any one-time acquisition costs)."
 )
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# 1.b) Annual rent as a percentage of purchase price
+rent_pct = st.sidebar.slider(
+    label="Annual Rent Yield (%)",
+    min_value=0.0,
+    max_value=100.0,
+    value=6.0,
+    step=0.1,
+    help="Enter the annual rent as a percentage of the purchase price. E.g. 6% means Annual Rent = 0.06 × Purchase Price."
+)
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+st.sidebar.markdown("---")
+st.sidebar.markdown("No taxes or financing assumed.\nROI is shown on a quarterly basis.")
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
+# 2) CALCULATIONS
+rent_decimal = rent_pct / 100.0
+annual_rent = purchase_price * rent_decimal
+quarterly_rent = annual_rent / 4.0
+
+# ROI metrics
+annual_roi_pct = rent_pct  # since annual_rent / purchase_price × 100 = rent_pct
+quarterly_roi_pct = annual_roi_pct / 4.0
+
+# Build a DataFrame for quarterly rents
+quarters = ["Q1", "Q2", "Q3", "Q4"]
+quarterly_values = [quarterly_rent] * 4
+df_quarters = pd.DataFrame({
+    "Quarter": quarters,
+    "Rent (USD)": quarterly_values
+})
+
+# 3) DISPLAY SUMMARY METRICS
+st.subheader("Summary Metrics")
+col1, col2, col3 = st.columns(3)
+col1.metric("Purchase Price (USD)", f"${purchase_price:,.0f}")
+col2.metric("Annual Rent (USD)", f"${annual_rent:,.0f}", help="Total rent collected over 12 months.")
+col3.metric("Annual ROI (%)", f"{annual_roi_pct:.2f}%")
+
+col4, col5, col6 = st.columns(3)
+col4.metric("Quarterly Rent (USD)", f"${quarterly_rent:,.0f}")
+col5.metric("Quarterly ROI (%)", f"{quarterly_roi_pct:.2f}%")
+col6.metric("Total ROI (First Year)", f"{annual_roi_pct:.2f}%")
+
+st.markdown("---")
+
+# 4) QUARTERLY RENT TABLE
+st.subheader("Quarterly Rent Breakdown")
+st.table(df_quarters.style.format({"Rent (USD)": "${:,.0f}"}))
+
+# 5) CHARTS
+st.subheader("Charts")
+
+# 5.a) Bar chart of quarterly rent
+fig_bar, ax_bar = plt.subplots()
+ax_bar.bar(df_quarters["Quarter"], df_quarters["Rent (USD)"])
+ax_bar.set_xlabel("Quarter")
+ax_bar.set_ylabel("Rent (USD)")
+ax_bar.set_title("Quarterly Rent Distribution")
+ax_bar.ticklabel_format(axis="y", style="plain")
+plt.tight_layout()
+st.pyplot(fig_bar)
+
+# 5.b) Pie chart: Purchase Price vs Annual Rent
+fig_pie, ax_pie = plt.subplots()
+labels = ["Capital (Purchase Price)", "Annual Rent (Return)"]
+sizes = [purchase_price, annual_rent]
+# Show percentages for the pie
+ax_pie.pie(
+    sizes,
+    labels=labels,
+    autopct=lambda pct: f"{pct:.1f}%" if pct > 0 else "",
+    startangle=90,
+    counterclock=False
+)
+ax_pie.set_title("Capital vs Annual Rent (Return)")
+ax_pie.axis("equal")  # Equal aspect ratio ensures pie is drawn as a circle.
+st.pyplot(fig_pie)
+
+# 6) FOOTER NOTE
+st.markdown(
     """
-
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
+    *All calculations assume no financing (cash purchase) and no taxes or additional operating expenses.*
+    """
 )
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
