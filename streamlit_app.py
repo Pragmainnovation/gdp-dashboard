@@ -127,71 +127,116 @@ st.markdown(
 st.markdown("---")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6) PDF REPORT GENERATION (with charts)
+# 6) PDF REPORT GENERATION (with black background, border, logo, contact)
 # ──────────────────────────────────────────────────────────────────────────────
 st.subheader("📄 Generate PDF Report")
 
 def create_pdf_with_charts(
     purchase_price, rent_pct, annual_rent, annual_roi_pct,
-    quarterly_rent, quarterly_roi_pct, df_quarters, pie_values
+    quarterly_rent, quarterly_roi_pct, df_quarters
 ):
     """
     Build a PDF in memory containing:
-      1. Inputs & computed outputs
-      2. Quarterly‐rent table
-      3. Bar‐chart PNG + Pie‐chart PNG, embedded
+      1. Black background + white border on each page
+      2. Dummy logo + contact info at top of Page 1
+      3. Inputs & computed outputs (all white text)
+      4. Quarterly‐rent table
+      5. Bar‐chart PNG + Pie‐chart PNG, embedded
     Returns: PDF data as bytes.
     """
+
+    # Helper: draw black background + white border on current page
+    def page_setup(pdf):
+        # Fill entire page black
+        pdf.set_fill_color(0, 0, 0)
+        pdf.rect(0, 0, pdf.w, pdf.h, style="F")
+        # Draw white border (2pt thick) with a small margin
+        margin = 10  # points
+        pdf.set_line_width(2)
+        pdf.set_draw_color(255, 255, 255)
+        pdf.rect(margin, margin, pdf.w - 2 * margin, pdf.h - 2 * margin)
 
     # --- STEP A: Generate the Matplotlib figures and save as temporary PNGs ---
     # A.1) Bar chart (matching the Altair on‐screen version)
     fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-    ax_bar.bar(df_quarters["Quarter"], df_quarters["Rent (USD)"])
-    ax_bar.set_xlabel("Quarter")
-    ax_bar.set_ylabel("Rent (USD)")
-    ax_bar.set_title("Quarterly Rent Distribution")
-    ax_bar.ticklabel_format(axis="y", style="plain")
+    ax_bar.bar(df_quarters["Quarter"], df_quarters["Rent (USD)"], color="#1f77b4")
+    ax_bar.set_facecolor("black")
+    ax_bar.tick_params(colors="white", which="both")
+    ax_bar.set_xlabel("Quarter", color="white")
+    ax_bar.set_ylabel("Rent (USD)", color="white")
+    ax_bar.set_title("Quarterly Rent Distribution", color="white")
+    for spine in ax_bar.spines.values():
+        spine.set_color("white")
     plt.tight_layout()
 
     tmp_bar = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    fig_bar.savefig(tmp_bar.name, dpi=150)
+    fig_bar.savefig(tmp_bar.name, dpi=150, facecolor="black")
     plt.close(fig_bar)
 
     # A.2) Pie chart (matching the Altair on‐screen version)
-    fig_pie, ax_pie = plt.subplots(figsize=(5, 5))
+    fig_pie, ax_pie = plt.subplots(figsize=(5, 5), facecolor="black")
     categories = ["Capital (Purchase Price)", "Annual Rent (Return)"]
     values = [purchase_price, annual_rent]
-    ax_pie.pie(
+    wedges, texts, autotexts = ax_pie.pie(
         values,
         labels=categories,
         autopct=lambda pct: f"{pct:.1f}%" if pct > 0 else "",
         startangle=90,
-        counterclock=False
+        counterclock=False,
+        textprops={"color": "white"},
+        wedgeprops={"edgecolor": "white"}
     )
-    ax_pie.set_title("Capital vs Annual Rent (Return)")
+    ax_pie.set_title("Capital vs Annual Rent (Return)", color="white")
     ax_pie.axis("equal")
     plt.tight_layout()
 
     tmp_pie = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    fig_pie.savefig(tmp_pie.name, dpi=150)
+    fig_pie.savefig(tmp_pie.name, dpi=150, facecolor="black")
     plt.close(fig_pie)
 
     # --- STEP B: Build the PDF (FPDF) ---
     pdf = FPDF(format="letter", unit="pt")
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 20, "Real Estate ROI Report", ln=True, align="C")
-    pdf.ln(10)
+    # Page 1 setup
+    page_setup(pdf)
 
+    # Logo placeholder (white rectangle + “LOGO” in white)
+    logo_w = 100
+    logo_h = 50
+    logo_x = 20
+    logo_y = 20
+    pdf.set_fill_color(255, 255, 255)
+    pdf.rect(logo_x, logo_y, logo_w, logo_h, style="F")
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(0, 0, 0)  # black text inside the white box
+    pdf.text(logo_x + (logo_w / 2) - 15, logo_y + (logo_h / 2) + 5, "LOGO")
+
+    # Contact info (white text)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(255, 255, 255)
+    contact_x = logo_x + logo_w + 20
+    contact_y = logo_y + 15
+    pdf.text(contact_x, contact_y, "Contact: 123-456-7890")
+    pdf.text(contact_x, contact_y + 15, "Email: dummy@example.com")
+
+    # Title of the report (white)
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_text_color(255, 255, 255)
+    pdf.text(logo_x, logo_y + logo_h + 30, "Real Estate ROI Report")
+
+    # Move down before writing the rest
+    pdf.ln(logo_h + 50)
+
+    # 1) Input parameters (white text)
     pdf.set_font("Helvetica", "", 12)
-    # 1) Input parameters
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 16, "1. Input Parameters:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 14, f"   - Purchase Price:        ${purchase_price:,.0f}", ln=True)
     pdf.cell(0, 14, f"   - Annual Rent Yield (%):  {rent_pct:.2f}%", ln=True)
     pdf.ln(6)
 
-    # 2) Computed outputs
+    # 2) Computed outputs (white text)
     pdf.set_font("Helvetica", "", 12)
     pdf.cell(0, 16, "2. Computed Outputs:", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -201,45 +246,48 @@ def create_pdf_with_charts(
     pdf.cell(0, 14, f"   - Quarterly ROI (%):      {quarterly_roi_pct:.2f}%", ln=True)
     pdf.ln(10)
 
-    # 3) Quarterly table
+    # 3) Quarterly table (white text on black background)
     pdf.set_font("Helvetica", "", 12)
     pdf.cell(0, 16, "3. Quarterly Rent Breakdown:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     col_width = 150
     row_height = 18
+    # Table header (light gray fill)
     pdf.set_fill_color(200, 200, 200)
+    pdf.set_text_color(0, 0, 0)  # black text in header cells
     pdf.cell(col_width, row_height, "Quarter", border=1, fill=True, align="C")
     pdf.cell(col_width, row_height, "Rent (USD)", border=1, fill=True, align="C")
     pdf.ln(row_height)
 
+    # Table rows
+    pdf.set_fill_color(0, 0, 0)
+    pdf.set_text_color(255, 255, 255)
     for idx, row in df_quarters.iterrows():
         q = row["Quarter"]
         r = f"${row['Rent (USD)']:,.0f}"
-        pdf.set_fill_color(255, 255, 255)
         pdf.cell(col_width, row_height, q, border=1, fill=True, align="C")
         pdf.cell(col_width, row_height, r, border=1, fill=True, align="C")
         pdf.ln(row_height)
 
-    pdf.ln(10)
-
-    # 4) Insert Bar + Pie charts on a new page
+    # Start page 2
     pdf.add_page()
+    page_setup(pdf)
+
+    # 4) Charts on Page 2
     pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 20, "4. Charts", ln=True, align="C")
-    pdf.ln(5)
+    pdf.set_text_color(255, 255, 255)
+    pdf.text(20, 40, "4. Charts:")
 
     # 4.a) Bar chart image
-    #    Place at x=60, y=60, width=500 (maintaining aspect ratio)
-    pdf.image(tmp_bar.name, x=60, y=60, w=500)
+    pdf.image(tmp_bar.name, x=20, y=60, w=500)
 
     # 4.b) Pie chart image (below the bar chart)
-    #    Place at x=180, y=380, width=300
-    pdf.image(tmp_pie.name, x=180, y=380, w=300)
+    pdf.image(tmp_pie.name, x=150, y=380, w=300)
 
-    # 5) Footer note
+    # 5) Footer note (white text)
     pdf.ln(20)
     pdf.set_font("Helvetica", "I", 10)
-    pdf.set_text_color(100, 100, 100)
+    pdf.set_text_color(255, 255, 255)
     footer = (
         "Note: All calculations assume no financing (cash purchase) "
         "and no taxes or additional operating expenses."
@@ -270,8 +318,7 @@ if st.button("📥 Download PDF Report"):
         annual_roi_pct=annual_roi_pct,
         quarterly_rent=quarterly_rent,
         quarterly_roi_pct=quarterly_roi_pct,
-        df_quarters=df_quarters,
-        pie_values=[purchase_price, annual_rent],
+        df_quarters=df_quarters
     )
 
     st.download_button(
